@@ -45,7 +45,7 @@ setup(
         zip_safe=True,
         test_suite = 'nose.collector',
         install_requires=[
-            'slackclient'
+            'requests'
         ],
         extras_require={
             'test': [],
