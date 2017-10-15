@@ -2,6 +2,8 @@ import requests
 from IPython.core.ultratb import AutoFormattedTB
 
 active=False
+WEBHOOK=None
+SENDER="Not set"
 
 def _set_ipython_exception_handler(handler):
   try:
@@ -10,40 +12,81 @@ def _set_ipython_exception_handler(handler):
     pass # Not running in ipython
 
 def notifying(sender='Jupyter Notebook',webhook=None):
-  # if not webhook:
-  #   webhook = WEBHOOK
+  global WEBHOOK, _active, SENDER
+  WEBHOOK=_select(webhook)
+  SENDER=sender
+  _active = WEBHOOK is not None
 
-  global notify, done, active
-  active = True
+  # this registers a custom exception handler for the whole current notebook
+  _set_ipython_exception_handler(custom_exc)
 
-  def notify(msg):
-    if not active:
-      return
+def notify(msg):
+  if not _active:
+    print('Notifications not activated')
+    return
 
-    payload = {
-        "text":msg,
-        "username":sender
-    }
-    requests.post(webhook,json=payload)
+  payload = {
+      "text":msg,
+      "username":SENDER
+  }
+  requests.post(WEBHOOK,json=payload)
 
-  def done(msg="Finished"):
-    global active
-    notify(msg)
-    active = False
-    _set_ipython_exception_handler(None)
+def custom_exc(shell, etype, evalue, tb, tb_offset=None):
+  '''this function will be called on exceptions in any cell
+  '''
+  # still show the error within the notebook, don't just swallow it
+  shell.showtraceback((etype, evalue, tb), tb_offset=tb_offset)
 
   # initialize the formatter for making the tracebacks into strings
   itb = AutoFormattedTB(mode = 'Plain', tb_offset = 1,color_scheme='NoColor')
 
-  # this function will be called on exceptions in any cell
-  def custom_exc(shell, etype, evalue, tb, tb_offset=None):
-    # still show the error within the notebook, don't just swallow it
-    shell.showtraceback((etype, evalue, tb), tb_offset=tb_offset)
+  # grab the traceback and make it into a list of strings
+  stb = itb.structured_traceback(etype, evalue, tb)
+  sstb = itb.stb2text(stb)
+  notify(sstb)
 
-    # grab the traceback and make it into a list of strings
-    stb = itb.structured_traceback(etype, evalue, tb)
-    sstb = itb.stb2text(stb)
-    notify(sstb)
+def done(msg="Finished"):
+  global active
+  notify(msg)
+  active = False
+  _set_ipython_exception_handler(None)
 
-  # this registers a custom exception handler for the whole current notebook
-  _set_ipython_exception_handler(custom_exc)
+def _config_fn():
+  import os
+  home = os.path.expanduser("~")
+  return os.path.join(home,'.nbslack.json')     
+
+def _load_config():
+  import os
+  import json
+  fn = _config_fn()
+  if os.path.exists(fn):
+    try:
+      return json.load(open(fn))
+    except:
+      return {}
+  return {}
+
+def _save_config(cfg):
+  import json
+  fn = _config_fn()
+  json.dump(cfg,open(fn,'w'),indent=2)
+
+def _select(webhook):
+  if webhook and webhook.startswith('https://'):
+    return webhook
+
+  config = _load_config()
+  if webhook is None:
+    if 'default' in config:
+      return config['default']
+
+    for v in config.values():
+      return v
+
+  return config.get(webhook,None)
+
+def register(webhook,name):
+  config = _load_config()
+  config[name]=webhook
+  _save_config(config)
