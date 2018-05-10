@@ -1,7 +1,7 @@
 import requests
 from IPython.core.ultratb import AutoFormattedTB
 
-active=False
+_active=False
 WEBHOOK=None
 SENDER="Not set"
 
@@ -46,9 +46,9 @@ def custom_exc(shell, etype, evalue, tb, tb_offset=None):
   notify(sstb)
 
 def done(msg="Finished"):
-  global active
+  global _active
   notify(msg)
-  active = False
+  _active = False
   _set_ipython_exception_handler(None)
 
 def _config_fn():
