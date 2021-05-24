@@ -29,7 +29,10 @@ def notify(msg):
       "text":msg,
       "username":SENDER
   }
-  requests.post(WEBHOOK,json=payload)
+  try:
+    requests.post(WEBHOOK,json=payload)
+  except:
+    print(f'Unable to post message to slack: {SENDER} "{msg}"')
 
 def custom_exc(shell, etype, evalue, tb, tb_offset=None):
   '''this function will be called on exceptions in any cell
